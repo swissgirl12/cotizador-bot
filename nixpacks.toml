@@ -1,0 +1,27 @@
+[phases.setup]
+nixPkgs = [
+  "glib",
+  "nss",
+  "nspr",
+  "atk",
+  "cups",
+  "drm",
+  "xorg.libX11",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
+  "xorg.libXrender",
+  "xorg.libXtst",
+  "xorg.libXScrnSaver",
+  "xorg.libxcb",
+  "xorg.libXcursor",
+  "xorg.libXi",
+  "xorg.libXinerama",
+  "alsa-lib",
+  "pango",
+  "cairo",
+  "fontconfig",
+  "freetype",
+  "harfbuzz"
+]
