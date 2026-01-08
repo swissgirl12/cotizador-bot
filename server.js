@@ -20,13 +20,26 @@ app.post("/generate-pdf", async (req, res) => {
   }
 
   try {
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--single-process"
+  ],
+});
     const page = await browser.newPage();
 
-    await page.goto(
-      "https://cabanasuiza-cotizador.proavant.net/Cotizaciones.php?src=4",
-      { waitUntil: "networkidle" }
-    );
+await page.goto(
+  "https://cabanasuiza-cotizador.proavant.net/Cotizaciones.php?src=4",
+  {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  }
+);
+await page.waitForSelector("input", { timeout: 30000 });
 
     // ⚠️ This selector MUST be verified
     await page.fill('input[name="personas"]', String(guests));
