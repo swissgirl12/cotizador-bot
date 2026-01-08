@@ -11,7 +11,6 @@ app.get("/", (req, res) => {
   res.send("Cotizador server is running ✅");
 });
 
-// MAIN ENDPOINT
 app.post("/generate-pdf", async (req, res) => {
   const { guests } = req.body;
 
@@ -19,58 +18,90 @@ app.post("/generate-pdf", async (req, res) => {
     return res.status(400).json({ error: "guests is required" });
   }
 
+  let browser;
+
   try {
-    const browser = await chromium.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--single-process"
-  ],
-});
-    const page = await browser.newPage();
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--single-process",
+      ],
+    });
 
-await page.goto(
-  "https://cabanasuiza-cotizador.proavant.net/Cotizaciones.php?src=4",
-  {
-    waitUntil: "domcontentloaded",
-    timeout: 60000,
-  }
-);
-await page.waitForSelector("input", { timeout: 30000 });
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-    // ⚠️ This selector MUST be verified
-    await page.fill('input[name="personas"]', String(guests));
+    // Open cotizador
+    await page.goto(
+      "https://cabanasuiza-cotizador.proavant.net/Cotizaciones.php?src=4",
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 60000,
+      }
+    );
 
-    const [download] = await Promise.all([
-      page.waitForEvent("download"),
-      page.click("text=Cotiza tu evento aquí"),
+    // Wait for input field
+    await page.waitForSelector(
+      'input[placeholder*="Total de invitados"]',
+      { timeout: 30000 }
+    );
+
+    // Fill guest count
+    await page.fill(
+      'input[placeholder*="Total de invitados"]',
+      String(guests)
+    );
+
+    // Click button and wait for new tab (PDF)
+    const [pdfPage] = await Promise.all([
+      context.waitForEvent("page"),
+      page.getByRole("button", { name: /cotiza tu evento/i }).click(),
     ]);
 
+    await pdfPage.waitForLoadState("networkidle", { timeout: 60000 });
+
+    // Save PDF
     const fileName = `cotizacion-${Date.now()}.pdf`;
     const filePath = path.join(__dirname, fileName);
 
-    await download.saveAs(filePath);
+    await pdfPage.pdf({
+      path: filePath,
+      format: "A4",
+      printBackground: true,
+    });
+
+    await pdfPage.close();
     await browser.close();
 
-    // Temporary public serving
     res.json({
       success: true,
-      message: "PDF generated",
       file: fileName,
+      url: `/files/${fileName}`,
     });
 
   } catch (err) {
+    console.error("PLAYWRIGHT ERROR:");
     console.error(err);
-    res.status(500).json({ error: "PDF generation failed" });
+
+    if (browser) await browser.close();
+
+    res.status(500).json({
+      error: "PDF generation failed",
+      details: err.message,
+    });
   }
 });
 
+// Serve generated PDFs
 app.use("/files", express.static(__dirname));
 
+// Railway port
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
